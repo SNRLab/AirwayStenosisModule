@@ -51,7 +51,6 @@ import torch.nn.functional as F
 import torch
 print(torch.__version__)                
 
-#import depth_estimation
 
 
 #depth estimation intro
@@ -82,114 +81,28 @@ parser.add_argument("--lambda_id", type=float, default=1, help="identity loss we
 opt = parser.parse_args()
 print(opt)
 
-# Create sample and checkpoint directories
-#os.makedirs("C:/Users/banac/OneDrive/Desktop/Projects/Bronchoscopy/Stenosis/Airway_Stenosis/Airway_Stenosis/images/%s-%s-%s/%s-Test-%s-%s" % (
-#  opt.network_name, opt.dataset_name, opt.testing_dataset, opt.network_name, opt.dataset_name, opt.testing_dataset),
-#            exist_ok=True)
-# os.makedirs("images/%s-TEMP-GT-DEPTHS" % (opt.testing_dataset), exist_ok=True)
-# os.makedirs("saved_models/%s-%s" % (opt.network_name, opt.dataset_name), exist_ok=True)
-# os.makedirs("DepthMetrics_while_training/%s-DepthPerf-%s-%s" % (opt.network_name, opt.dataset_name, opt.testing_dataset), exist_ok=True)
-
-# os.makedirs("images/%s-%s-%s/Generator_Outputs" % (opt.network_name, opt.dataset_name, opt.testing_dataset), exist_ok=True)
-
-# Losses
-criterion_GAN = torch.nn.MSELoss()
-criterion_cycle = torch.nn.MSELoss()
-criterion_identity = torch.nn.L1Loss(size_average=None, reduce=None, reduction='elementwise_mean')
 
 cuda = torch.cuda.is_available()
 input_shape = (opt.channels, opt.img_height, opt.img_width)
 # Initialize generator and discriminator
 G_AB = GeneratorResNet(input_shape, opt.n_residual_blocks)
-G_BA = GeneratorResNet(input_shape, opt.n_residual_blocks)
-G_CB = GeneratorResNet(input_shape, opt.n_residual_blocks)
-G_BC = GeneratorResNet(input_shape, opt.n_residual_blocks)
-G_AC = GeneratorResNet(input_shape, opt.n_residual_blocks)
-G_CA = GeneratorResNet(input_shape, opt.n_residual_blocks)
-D_B1 = Discriminator(input_shape)
-D_A2 = Discriminator(input_shape)
-# D_B3 = Discriminator(input_shape)
-# D_C4 = Discriminator(input_shape)
-# D_C5 = Discriminator(input_shape)
-# D_A6 = Discriminator(input_shape)
 
 if cuda:
   G_AB = G_AB.cuda()
-  G_BA = G_BA.cuda()
-  G_BC = G_BC.cuda()
-  G_CB = G_CB.cuda()
-  G_AC = G_AC.cuda()
-  G_CA = G_CA.cuda()
-
-  D_A2 = D_A2.cuda()
-  D_B1 = D_B1.cuda()
-  criterion_GAN.cuda()
-  criterion_cycle.cuda()
-  criterion_identity.cuda()
+  
 
 if opt.epoch != 0:
   # Load pretrained models
+  #C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_BC-%dep.pth"
   G_AB.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_AB-%dep.pth" % (
+    "C:/Users/banac/Artur/Projects/Bronchoscopy/Stenosis/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_AB-%dep.pth" % (
       opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-  G_BA.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_BA-%dep.pth" % (
-      opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-  G_BC.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_BC-%dep.pth" % (
-      opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-  G_CB.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_CB-%dep.pth" % (
-      opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-  G_AC.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_AC-%dep.pth" % (
-      opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-  G_CA.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-G_CA-%dep.pth" % (
-      opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-
-  D_B1.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-D_B1-%dep.pth" % (
-      opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-  D_A2.load_state_dict(torch.load(
-    "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/saved_models/%s-%s/%s-%s-D_A2-%dep.pth" % (
-      opt.network_name, opt.dataset_name, opt.network_name, opt.dataset_name, opt.epoch)))
-else:
-  # Initialize weights
-  G_AB.apply(weights_init_normal)
-  G_BA.apply(weights_init_normal)
-  G_BC.apply(weights_init_normal)
-  G_CB.apply(weights_init_normal)
-  G_AC.apply(weights_init_normal)
-  G_CA.apply(weights_init_normal)
-
-  D_B1.apply(weights_init_normal)
-  D_A2.apply(weights_init_normal)
-
-# Optimizers
-optimizer_G = torch.optim.Adam(
-  itertools.chain(G_AB.parameters(), G_BA.parameters(), G_BC.parameters(), G_CB.parameters(), G_AC.parameters(),
-                  G_CA.parameters()), lr=opt.lr, betas=(opt.b1, opt.b2)
-)
-optimizer_D_B1 = torch.optim.Adam(D_B1.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-optimizer_D_A2 = torch.optim.Adam(D_A2.parameters(), lr=opt.lr, betas=(opt.b1, opt.b2))
-
-# Learning rate update schedulers
-lr_scheduler_G = torch.optim.lr_scheduler.LambdaLR(
-  optimizer_G, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step
-)
-lr_scheduler_D_B1 = torch.optim.lr_scheduler.LambdaLR(
-  optimizer_D_B1, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step
-)
-lr_scheduler_D_A2 = torch.optim.lr_scheduler.LambdaLR(
-  optimizer_D_A2, lr_lambda=LambdaLR(opt.n_epochs, opt.epoch, opt.decay_epoch).step
-)
-
+  
+ 
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
 # Buffers of previously generated samples
 fake_B1_buffer = ReplayBuffer()
-fake_A2_buffer = ReplayBuffer()
 
         
 
@@ -337,7 +250,7 @@ class Airway_StenosisWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.ui.UpdateDirsButton.connect('clicked(bool)',self.onUpdateDirsButton)
 
         #Initialize the paths
-        self.ui.MyPCPath.currentPath = "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/"
+        self.ui.MyPCPath.currentPath = "C:/Users/banac/Artur/Projects/Bronchoscopy/Stenosis/Airway_Stenosis/Airway_Stenosis/"# "C:/Users/mn1026/Desktop/Airway_Stenosis/Airway_Stenosis/"
         self.ui.ExpirationPath.currentPath = "Z:/2021P000991-Hata/"  #"C:/Users/banac/OneDrive/Desktop/Projects/Bronchoscopy/Stenosis/Airway_Stenosis/Airway_Stenosis/data/Testing/old_gt/AS/A/E4_grey.png"
         self.ui.InspirationPath.currentPath = "Z:/2021P000991-Hata/"  #"C:/Users/banac/OneDrive/Desktop/Projects/Bronchoscopy/Stenosis/Airway_Stenosis/Airway_Stenosis/data/Testing/old_gt/AS/A/I4_grey.png"     
         #Markups
@@ -635,7 +548,7 @@ class Airway_StenosisWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.InspirationNodeThresholded = slicer.util.loadVolume(self.ui.MyPCPath.currentPath+'images/inspiration_thresholded.jpg')
 
         # Do the maths to calculate SI
-        SI = 1-(nan_nr_inspiration/nan_nr_expiration)
+        SI = 1-(nan_nr_expiration/nan_nr_inspiration)
         self.ui.lcdNumber.display(SI)
         print("SI: ", SI)
 
@@ -691,7 +604,7 @@ class Airway_StenosisWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
         self.InspirationNodeThresholded = slicer.util.loadVolume(self.ui.MyPCPath.currentPath+'images/inspiration_thresholded.jpg')
 
         # Do the maths to calculate SI
-        SI = 1-(nan_nr_inspiration/nan_nr_expiration)
+        SI = 1-(nan_nr_expiration/nan_nr_inspiration)
         self.ui.lcdNumber.display(SI)
         print("SI: ", SI)
 
@@ -808,51 +721,14 @@ class Airway_StenosisWidget(ScriptedLoadableModuleWidget, VTKObservationMixin):
             num_workers=0,
         )
 
-
-        """Saves a generated sample from the test set"""
-        loss_id_A_test = 0
-        loss_id_B_test = 0
-        loss_identity_test = 0
-        loss_GAN_AB_test = 0
-        loss_GAN_BA_test = 0
-        loss_GAN_test = 0
-        loss_cycle_A_test = 0
-        loss_cycle_B_test = 0
-        loss_cycle_test = 0
-        loss_G_test = 0
-        L1 = 0
-        L2 = 0
-        PSNR=0
-
         G_AB.eval()
-        G_BA.eval()
 
-        L1_arr = np.zeros((1, len(val_dataloader_non_flipped)))
-        L2_arr = np.zeros((1, len(val_dataloader_non_flipped)))
-        PSNR_arr = np.zeros((1, len(val_dataloader_non_flipped)))
-        fps_arr = np.zeros((1,len(val_dataloader_non_flipped)))
-        MI_arr = np.zeros((1, len(val_dataloader_non_flipped)))
-        NCC_arr = np.zeros((1, len(val_dataloader_non_flipped)))
-        SSIM_arr = np.zeros((1, len(val_dataloader_non_flipped)))
 
         for i, batch in enumerate(val_dataloader_non_flipped):
             start = time.time()
             real_A = Variable(batch["A"].type(Tensor))
             fake_B1 = G_AB(real_A)
-
             end = time.time()
-
-            fake_C5 = G_AC(real_A)
-            real_B = Variable(batch["B"].type(Tensor))
-            fake_A2 = G_BA(real_B)
-            fake_C4 = G_BC(real_B)
-
-            real_C = Variable(batch["C"].type(Tensor))
-            fake_B3 = G_CB(real_C)
-            fake_A6 = G_CA(real_C)
-            print(real_A)
-
-            # ---------------------------------------------------------------------
             save_image(fake_B1, self.ui.MyPCPath.currentPath+"images/estimated_depths/depth%s.png" % (i),normalize=False, scale_each=False) #range= (0,128)
        
 # Airway_StenosisLogic
